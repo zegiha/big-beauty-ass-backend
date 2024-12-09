@@ -1,13 +1,17 @@
-import { Controller, Get, Query } from "@nestjs/common";
+import {Body, Controller, Get, Post, Query} from "@nestjs/common";
 import { AuthService } from "./auth.service";
+import { RegisterDto } from "./auth.dto";
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Get('/login')
-  login(@Query('code') code: string) {
-    return this.authService.login(code);
+  @Post('/register')
+  login(
+    @Body() registerDto: RegisterDto,
+    @Query('code') code: string
+  ): Promise<any> {
+    return this.authService.register(registerDto, code);
   }
 
   @Get('/github/client_id')
@@ -17,4 +21,3 @@ export class AuthController {
     return JSON.parse(JSON.stringify(data));
   }
 }
-

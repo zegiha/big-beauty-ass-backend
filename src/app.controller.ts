@@ -13,8 +13,8 @@ export class AppController {
   testEnv(): Promise<string> {
     return this.appService.testEnv();
   }
-  @Post('/test-db-create')
-  test_db_create(@Body('user_name') user_name: string): Promise<{id: string, user_name: string}> {
-    return this.appService.test_db_create(user_name);
-  }
+  // @Post('/test-db-create')
+  // test_db_create(@Body('user_name') user_name: string): Promise<{id: string, user_name: string}> {
+  //   return this.appService.test_db_create(user_name);
+  // }
 }

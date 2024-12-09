@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../prisma/prisma.service';
+import {PrismaService} from "../../prisma/prisma.service";
+import {RegisterDto} from "./auth.dto";
 
 @Injectable()
 export class AuthService {
@@ -10,14 +11,26 @@ export class AuthService {
     return `https://github.com/login/oauth/authorize?client_id=${this.configService.get('GITHUB_CLIENT_ID')}`;
   }
 
-  async login(code: string) {
+  async register(registerDto: RegisterDto, code: string): Promise<any> {
+    const githubAccessToken = await this.getGithubAccessToken(code);
+    this.prisma.user.create({
+      data: {
+        user_email: registerDto.user_email,
+        user_password: registerDto.user_password,
+        user_name: registerDto.user_name,
+        github_access_token: githubAccessToken,
+      }
+    })
+  }
+
+  async getGithubAccessToken(code: string): Promise<string> {
     const req = {
       code,
       client_id: this.configService.get('GITHUB_CLIENT_ID'),
       client_secret: this.configService.get('GITHUB_CLIENT_SECRET'),
     }
 
-    const res = await fetch('https://github.com/login/oauth/access_token', {
+    return await fetch('https://github.com/login/oauth/access_token', {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -28,9 +41,5 @@ export class AuthService {
       const data = await res.json();
       return data.access_token;
     });
-
-    console.log(res);
-
-    return res;
   }
 }
