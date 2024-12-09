@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {PrismaService} from "../../prisma/prisma.service";
 import {RegisterDto} from "./auth.dto";
+import { LoginDto } from './auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -11,9 +12,9 @@ export class AuthService {
     return `https://github.com/login/oauth/authorize?client_id=${this.configService.get('GITHUB_CLIENT_ID')}`;
   }
 
-  async register(registerDto: RegisterDto, code: string): Promise<any> {
+  async register(registerDto: RegisterDto, code: string): Promise<string> {
     const githubAccessToken = await this.getGithubAccessToken(code);
-    this.prisma.user.create({
+    const {id} = await this.prisma.user.create({
       data: {
         user_email: registerDto.user_email,
         user_password: registerDto.user_password,
@@ -21,6 +22,7 @@ export class AuthService {
         github_access_token: githubAccessToken,
       }
     })
+    return id;
   }
 
   async getGithubAccessToken(code: string): Promise<string> {
@@ -41,5 +43,20 @@ export class AuthService {
       const data = await res.json();
       return data.access_token;
     });
+  }
+
+  async login(loginDto: LoginDto): Promise<string> {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        user_email: loginDto.user_email,
+        user_password: loginDto.user_password,
+      }
+    });
+    
+    if (!user) {
+      throw new Error('Invalid credentials');
+    }
+    
+    return user.id;
   }
 }

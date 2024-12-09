@@ -13,3 +13,8 @@ export class RegisterDto {
   @IsNotEmpty()
   user_password: string;
 }
+
+export class LoginDto {
+  user_email: string;
+  user_password: string;
+}
