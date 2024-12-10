@@ -18,7 +18,6 @@ export class AuthController {
   @Get('/github/client_id')
   async getGitClientId(): Promise<JSON> {
     const data: { githubRegisterUrl: string } = { githubRegisterUrl: await this.authService.getGitClientId() };
-    console.log(JSON.parse(JSON.stringify(data)))
     return JSON.parse(JSON.stringify(data));
   }
 

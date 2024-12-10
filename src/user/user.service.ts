@@ -15,16 +15,13 @@ export class UserService {
       headers: {
         Authorization: `token ${github_access_token}`
       }
-    });
-
+    }).then(res => res.json());
 
 
     return {
       name: user_name,
-      github_username: '',
-      github_profile_image: '',
-      // github_username: githubProfile.login,
-      // github_profile_image: ''
+      github_username: githubProfile.login,
+      github_profile_image: githubProfile.avatar_url,
     };
   }
 }

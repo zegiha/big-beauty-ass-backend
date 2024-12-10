@@ -15,8 +15,23 @@ datasource db {
 
 model User {
   id                  String @id @unique @default(uuid())
-  user_email          String
+  user_email          String @unique
   user_password       String
   user_name           String
   github_access_token String
+  pr_list             Pr[]
+}
+
+model Pr {
+  id          String   @id @unique @default(uuid())
+  user_id     String
+  create_at   DateTime @default(now())
+  value       Int
+  repo_id     String
+  repo_name   String
+  repo_owner  String
+  push_branch String
+  pull_branch String
+  pull_number String
+  user        User     @relation(fields: [user_id], references: [id])
 }
