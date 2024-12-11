@@ -6,14 +6,14 @@ export interface IRepo {
   last_push: string
 }
 
+export type TCompare_code_list = Array<{
+  startLine: number,
+  contents: Array<string>
+}>
+
 export interface ICompare {
   fileName: string,
-  before: Array<{
-    startLine: number,  
-    contents: Array<string>
-  }>
-  after: Array<{
-    startLine: number,
-    contents: Array<string>
-  }>
+  before: TCompare_code_list
+  after: TCompare_code_list
 }
+

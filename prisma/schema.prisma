@@ -34,4 +34,6 @@ model Pr {
   pull_branch String
   pull_number String
   user        User     @relation(fields: [user_id], references: [id])
+  q1 String
+  q2 String
 }

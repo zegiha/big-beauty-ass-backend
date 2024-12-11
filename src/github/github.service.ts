@@ -1,12 +1,13 @@
 import {Injectable} from "@nestjs/common";
 import {PrismaService} from "../../prisma/prisma.service";
-import {IRepo} from "./github.interface";
+import {ICompare, IRepo, TCompare_code_list} from "./github.interface";
+import { CreatePrDto } from "./github.dto";
 
 @Injectable()
 export class GithubService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getRepos(user_id: string): Promise<Array<IRepo>> {
+  async getRecentRepos(user_id: string): Promise<Array<IRepo>> {
     const {github_access_token} = await this.prisma.user.findUnique({
       where: {id: user_id},
     });
@@ -41,7 +42,7 @@ export class GithubService {
   }
 
   async getCommits(user_id: string) {
-    const repos = await this.getRepos(user_id).then(res => res.slice(0, 3));
+    const repos = await this.getRecentRepos(user_id).then(res => res.slice(0, 3));
     const {github_access_token} = await this.prisma.user.findUnique({
       where: {id: user_id},
     });
@@ -60,8 +61,8 @@ export class GithubService {
   }
 
   async getCommitCompare(user_id: string) {
-    const repo = await this.getRepos(user_id).then(res => res[2]);
-    const commit = await this.getCommits(user_id).then(res => res[2]);
+    const repo = await this.getRecentRepos(user_id).then(res => res[0]);
+    const commit = await this.getCommits(user_id).then(res => res[0]);
     const {github_access_token} = await this.prisma.user.findUnique({
       where: {id: user_id},
     });
@@ -73,76 +74,137 @@ export class GithubService {
         }
       }
     ).then(res => res.json());
-    interface ICompare {
-      fileName: string,
-      before: Array<{
-        startLine: number,  
-        contents: Array<string>
-      }>
-      after: Array<{
-        startLine: number,
-        contents: Array<string>
-      }>
-    }
-    const compareData: Array<ICompare> = compare.files.map((v) => {
+
+    const compareData: Array<ICompare | 'empty file'> = compare.files.map((v) => {
       const fileName = v.filename;
-      if(fileName.includes('lock')) {
-        if(v.patch) {
-          return this.processDiffFile(v.patch);
+      const before: TCompare_code_list = [];
+      const after: TCompare_code_list = [];
+
+      if(fileName.includes('lock')) return 'empty file';
+      if(!v.patch) return 'empty file';
+
+      const file = v.patch.split('\n');
+      file.forEach(line => {
+        const diffInfo = this.parseDiffHeader(line);
+        if(diffInfo) {
+          before.push({startLine: diffInfo.beforeStartLine, contents: []});
+          after.push({startLine: diffInfo.afterStartLine, contents: []});
+          if(diffInfo.additionalInfo !== '') {
+            if(diffInfo.additionalInfo[0] !== '-') {
+              after[after.length - 1].contents.push(diffInfo.additionalInfo);
+            }
+            if(diffInfo.additionalInfo[0] !== '+') {
+              before[before.length - 1].contents.push(diffInfo.additionalInfo);
+            }
+          }
+        } else {
+          if(line[0] !== '-') {
+            after[after.length - 1].contents.push(line);
+          }
+          if(line[0] !== '+') {
+            before[before.length - 1].contents.push(line);
+          }
         }
-        return 'empty file';
+      })
+
+      return {
+        fileName,
+        before,
+        after
       }
     });
     return compareData;
   }
-
-  private parseDiffHeader(line: string): DiffInfo | null {
-    const match = line.match(/@@ -(\d+),(\d+) \+(\d+),(\d+) @@/);
-    if (!match) return null;
-
+  
+  private parseDiffHeader(header: string): {
+    beforeStartLine: number;
+    afterStartLine: number;
+    additionalInfo: string;
+  } | null {
+    // @@ -n1,m1 n2,m2 @@ 형식 파싱
+    const regex = /^@@ -(\d+),\d+ \+(\d+),\d+ @@(.*)$/;
+    const match = header.match(regex);
+  
+    if (!match) {
+      return null
+    }
+  
     return {
-      beforeStartLine: parseInt(match[1], 10),
-      beforeLineCount: parseInt(match[2], 10),
-      afterStartLine: parseInt(match[3], 10),
-      afterLineCount: parseInt(match[4], 10),
+      beforeStartLine: parseInt(match[1]),
+      afterStartLine: parseInt(match[2]),
+      additionalInfo: match[3].trim()
     };
   }
 
-  private processDiffFile(patch: string): ICompareResult | 'empty file' {
-    const lines = patch.split('\n');
-    let currentDiffInfo: DiffInfo | null = null;
-
-    // 모든 라인을 순회하면서 diff 헤더 찾기
-    for (const line of lines) {
-      const diffInfo = this.parseDiffHeader(line);
-      if (diffInfo) {
-        currentDiffInfo = diffInfo;
-        break;
-      }
-    }
-
-    if (!currentDiffInfo) {
-      return 'empty file';
-    }
-
-    const beforeContents = lines.slice(1).filter(line => line[0] !== '+');
-    const afterContents = lines.slice(1).filter(line => line[0] !== '-');
-
-    return {
-      fileName,
-      before: {
-        startLine: currentDiffInfo.beforeStartLine,
-        contents: beforeContents
-      },
-      after: {
-        startLine: currentDiffInfo.afterStartLine,
-        contents: afterContents
-      }
-    };
-  }
-}
-
+  async getRecentPr(user_id: string) {
+    const {github_access_token} = await this.prisma.user.findUnique({
+      where: {id: user_id},
     });
-    return compare;
+    const repo = await this.getRecentRepos(user_id).then(res => res[0]);
+    const prs = await fetch(
+      `https://api.github.com/repos/${repo.owner_name}/${repo.repo_name}/pulls`,
+      {
+        headers: {
+          Authorization: `token ${github_access_token}`
+        }
+      }
+    ).then(res => res.json());
+    console.log(repo.repo_name);
+    return prs;
+  }
+
+  async createPr(user_id: string, createPrDto: CreatePrDto) {
+    const {
+      repo_owner,
+      repo_name,
+      push_branch,
+      pull_branch,
+      pull_title,
+      pull_body,
+      value,
+      q1,
+      q2,
+      pointed_user_id
+    } = createPrDto;
+    const {github_access_token} = await this.prisma.user.findUnique({
+      where: {id: user_id},
+    });
+    const {login} = await fetch('https://api.github.com/user', {
+      headers: {
+        Authorization: `token ${github_access_token}`
+      }
+    }).then(res => res.json());
+    const pr = await fetch(
+      `https://api.github.com/repos/${repo_owner}/${repo_name}/pulls`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `token ${github_access_token}`
+        },
+        body: JSON.stringify({
+          title: pull_title,
+          head: `${login}:${push_branch}`,
+          base: pull_branch,
+          body: pull_body,
+        })
+      }
+    ).then(res => res.json());
+    await this.prisma.pr.create({
+      data: {
+        user_id: pointed_user_id,
+        value: value,
+        repo_id: String(pr.id),
+        repo_name: repo_name,
+        repo_owner: repo_owner,
+        push_branch: push_branch,
+        pull_branch: pull_branch,
+        pull_number: String(pr.number),
+        q1: q1,
+        q2: q2,
+      }
+    })
+    return pr;
   }
 }
+

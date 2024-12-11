@@ -1,14 +1,15 @@
-import {Controller, Get} from "@nestjs/common";
+import {Controller, Get, Post, Body} from "@nestjs/common";
 import {GithubService} from "./github.service";
 import {UserId} from "../auth/user-id.decorator";
 import {IRepo, ICompare} from "./github.interface";
+import { CreatePrDto } from "./github.dto";
 
 @Controller('github')
 export class GithubController {
   constructor(private readonly githubService: GithubService) {}
-  @Get('/repos')
-  async getRepos(@UserId() userId: string): Promise<Array<IRepo>> {
-    return await this.githubService.getRepos(userId);
+  @Get('/repo/recent')
+  async getRecentRepos(@UserId() userId: string): Promise<Array<IRepo>> {
+    return await this.githubService.getRecentRepos(userId);
   }
 
   @Get('/commits')
@@ -19,5 +20,15 @@ export class GithubController {
   @Get('/commit/compare')
   async getCompare(@UserId() userId: string): Promise<Array<ICompare | 'empty file'>> {
     return await this.githubService.getCommitCompare(userId);
+  }
+
+  @Get('/pr/recent')
+  async getRecentPr(@UserId() userId: string) {
+    return await this.githubService.getRecentPr(userId);
+  }
+
+  @Post('/pr/create')
+  async createPr(@Body() createPrDto: CreatePrDto, @UserId() userId: string,) {
+    return await this.githubService.createPr(userId, createPrDto);
   }
 }
